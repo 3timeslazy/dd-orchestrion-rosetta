@@ -4,6 +4,44 @@ To build the image, run
 docker build -t dd-comptime .
 ```
 
+## Fix
+
+To fix some of the errors below, in `internal/goflags/flags.go` change this
+
+```go
+if errors.Is(err, fs.ErrNotExist) && runtime.GOARCH == "amd64" && runtime.GOOS == "linux" && filepath.Base(args[0]) == "rosetta" && len(args) > 1
+```
+
+to this
+
+```go
+notExist := errors.Is(err, fs.ErrNotExist) || strings.Contains(err.Error(), "executable file not found")
+rosetta := strings.Contains(filepath.Base(args[0]), "rosetta")
+if notExist && runtime.GOARCH == "amd64" && runtime.GOOS == "linux" && rosetta && len(args) > 1 {
+```
+
+### explaination
+
+Depending on the path, `exec.LookPath` returns either `fs.ErrNotExist` or an `os.Error` with "executable file not found in $PATH" message
+
+```go
+package main
+
+import (
+	"fmt"
+	"os/exec"
+)
+
+func main() {
+	fmt.Println(exec.LookPath("[rosetta]"))
+	fmt.Println(exec.LookPath("/run/rosetta/rosetta"))
+}
+
+// prints
+// exec: "[rosetta]": executable file not found in $PATH
+// exec: "/run/rosetta/rosetta": stat /run/rosetta/rosetta: no such file or directory
+```
+
 ## Error message on OrbStack with Rosetta
 ```
 +] Building 37.5s (9/9) FINISHED                                                                                                                                 docker:orbstack
